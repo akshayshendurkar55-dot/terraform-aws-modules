@@ -1,0 +1,4 @@
+# Example variables for S3 reusable module demonstration
+# Copy this file to terraform.tfvars and customize your bucket name
+bucket_name = "example-unique-bucket-name-prefix"
+
