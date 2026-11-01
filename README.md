@@ -1,227 +1,233 @@
-# Reusable AWS S3 Bucket Terraform Module
+﻿# Reusable AWS Terraform Modules (Production-Conscious IaC)
 
-A production-ready, modular Terraform project demonstrating how to build, configure, and consume a reusable AWS S3 module adhering to AWS security best practices.
-
----
-
-## 📌 Project Overview & Objectives
-
-The primary objective of this project is to implement an enterprise-grade Infrastructure as Code (IaC) pattern in Terraform using a reusable child module architecture.
-
-Instead of hardcoding resource blocks directly in the root configuration, this project encapsulates S3 bucket creation and hardening logic into a standalone, version-controlled module (`modules/s3`), making it reusable across environments (Dev, Staging, Prod) and multiple workloads.
-
-### Key Highlights:
-- **Modular Design:** Decoupled root orchestration and reusable child module logic.
-- **Security-First Architecture:** Versioning enabled, AES256 default server-side encryption, and strict block on all public access.
-- **Provider & Version Locking:** Pinned AWS provider (`~> 5.0`) with child module compatibility (`>= 4.0.0`).
-- **Dry-Run Validated:** Completely tested and plan-verified (`4 to add, 0 to change, 0 to destroy`) without making live AWS changes.
+A modular, production-conscious Terraform repository containing four independent, reusable AWS infrastructure modules adhering to HashiCorp best practices and AWS Well-Architected Framework guidelines.
 
 ---
 
-## 💡 Why Reusable Terraform Modules?
+## 📌 Repository Overview & Objectives
 
-1. **DRY Principle (Don't Repeat Yourself):** Avoids copy-pasting 30-50 lines of S3 configuration across multiple environments.
-2. **Centralized Security & Governance:** Security baselines (e.g., encryption, public access block) are enforced in one place. Any consumer using the module automatically gets compliant infrastructure.
-3. **Maintainability:** Updates or standard changes are made once in the child module, propagating cleanly to all callers.
-4. **Separation of Concerns:** The child module defines *how* an S3 bucket is safely built; the root module defines *what* inputs (bucket name, region, tags) to supply for a given deployment.
+This repository demonstrates how to architect, structure, and consume production-grade Infrastructure as Code (IaC) modules in AWS. Rather than hardcoding infrastructure into monolithic configurations, this repository isolates common cloud patterns into reusable components:
+
+1. **S3 Bucket Module:** Secure object storage with mandatory versioning, AES256 server-side encryption, and strict public access blocking.
+2. **VPC Network Module:** Multi-AZ Virtual Private Cloud with public and private subnets, an Internet Gateway, and decoupled route tables.
+3. **Lambda Compute Module:** Configurable serverless compute engine supporting flexible runtimes, memory/timeout validations, and dynamic environment variables.
+4. **CloudFront CDN Module:** Edge content distribution using an S3 REST origin secured with AWS Origin Access Control (OAC) and SigV4 request signing.
+
+Each module is paired with an independent implementation in `examples/` demonstrating how calling modules source, configure, and consume module outputs.
 
 ---
 
-## 📂 Project Structure
+## 📂 Repository Structure
 
 ```text
-terraform-s3-module/
+terraform-aws-modules/
 │
-├── .gitignore                  # Prevents secrets, state files, and cache from entering Git
-├── .terraform.lock.hcl         # Dependency lock file pinning exact provider versions
-├── provider.tf                 # Terraform engine settings and AWS provider configuration
-├── variables.tf                # Root module input variable declarations and defaults
-├── terraform.tfvars            # Local variable assignments (excluded from Git)
-├── terraform.tfvars.example    # Public template showing variable usage without secrets
-├── main.tf                     # Root caller instantiating the child module
-├── outputs.tf                  # Root-level outputs surfacing module attributes
-├── README.md                   # Complete architectural and operational documentation
+├── .gitignore                  # Prevents secrets, state files, cache, and OS metadata from Git
+├── .terraform.lock.hcl         # Root dependency lock file pinning exact provider binaries
+├── provider.tf                 # Root AWS provider configuration (region: ap-south-1)
+├── variables.tf                # Root variable definitions (region, bucket_name, tags)
+├── terraform.tfvars            # Local demo variables (strictly excluded from Git)
+├── terraform.tfvars.example    # Public variable template for external reviewers
+├── main.tf                     # Root caller demonstrating the S3 child module
+├── outputs.tf                  # Root-level outputs
+├── README.md                   # Main repository documentation
 │
-└── modules/
-    └── s3/                     # Self-contained Reusable Child Module
-        ├── versions.tf         # Minimum Terraform & AWS provider constraints for the module
-        ├── variables.tf        # Input variable definitions required by the module
-        ├── main.tf             # Core AWS S3 resources (Bucket, Versioning, SSE, Public Access)
-        └── outputs.tf          # Module outputs exported back to the calling root
+├── modules/                    # Self-contained Reusable Child Modules
+│   ├── s3/                     # S3 Module (Bucket, Versioning, SSE, Public Access Block)
+│   │   ├── versions.tf
+│   │   ├── variables.tf
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   ├── vpc/                    # VPC Module (VPC, Multi-AZ Subnets, IGW, Route Tables)
+│   │   ├── versions.tf
+│   │   ├── variables.tf
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   ├── lambda/                 # Lambda Module (Function, Handler, Runtime, Memory, Validation)
+│   │   ├── versions.tf
+│   │   ├── variables.tf
+│   │   ├── main.tf
+│   │   └── outputs.tf
+│   └── cloudfront/             # CloudFront Module (OAC, SigV4, Cache Behavior, Security)
+│       ├── versions.tf
+│       ├── variables.tf
+│       ├── main.tf
+│       └── outputs.tf
+│
+└── examples/                   # Independent, Testable Example Implementations
+    ├── vpc/                    # Example VPC implementation across 2 Availability Zones
+    │   ├── provider.tf
+    │   ├── variables.tf
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   └── README.md
+    ├── lambda/                 # Example Lambda function caller
+    │   ├── provider.tf
+    │   ├── variables.tf
+    │   ├── main.tf
+    │   ├── outputs.tf
+    │   └── README.md
+    └── cloudfront/             # Example CloudFront distribution with S3 OAC
+        ├── provider.tf
+        ├── variables.tf
+        ├── main.tf
+        ├── outputs.tf
+        └── README.md
 ```
 
 ---
 
-## 🏗️ Architecture: Root Module vs Child Module
+## 🏗️ Architecture & Component Flow
 
 ```mermaid
 flowchart TD
-    subgraph RootModule ["Root Module (Orchestrator)"]
-        A[terraform.tfvars] -->|bucket_name| B[variables.tf]
-        B -->|Passes variables| C[main.tf: module 's3_bucket']
-        D[provider.tf: region ap-south-1] --> C
+    User([End User / Client]) -->|HTTPS: 443| CF[CloudFront Distribution]
+
+    subgraph EdgeServices ["Edge & Content Delivery"]
+        CF -->|SigV4 Signed via OAC| S3Bucket[S3 Bucket: Restricted Origin]
     end
 
-    subgraph ChildModule ["Child Module: modules/s3 (Reusable Engine)"]
-        C -->|Instantiates| M_VARS[modules/s3/variables.tf]
-        M_VARS --> S3[aws_s3_bucket.this]
-        S3 -->|Implicit Dependency| VERS[aws_s3_bucket_versioning.this]
-        S3 -->|Implicit Dependency| SSE[aws_s3_bucket_server_side_encryption_configuration.this]
-        S3 -->|Implicit Dependency| PAB[aws_s3_bucket_public_access_block.this]
-        S3 --> M_OUT[modules/s3/outputs.tf]
+    subgraph ServerlessCompute ["Serverless Compute"]
+        API[API Gateway / Event] --> Lambda[AWS Lambda Function]
     end
 
-    M_OUT -->|Exports bucket_name & bucket_arn| ROOT_OUT[outputs.tf]
+    subgraph NetworkVPC ["AWS VPC: 10.0.0.0/16 (ap-south-1)"]
+        IGW[Internet Gateway]
+
+        subgraph PublicSubnets ["Public Subnets (Web / Load Balancers)"]
+            PUB1["Public Subnet 1 (ap-south-1a)"]
+            PUB2["Public Subnet 2 (ap-south-1b)"]
+        end
+
+        subgraph PrivateSubnets ["Private Subnets (Isolated Backend / DB)"]
+            PRIV1["Private Subnet 1 (ap-south-1a)"]
+            PRIV2["Private Subnet 2 (ap-south-1b)"]
+        end
+    end
+
+    IGW <--> PublicSubnets
 ```
 
-### 1. Root Module (`/`)
-- Acts as the environment orchestrator.
-- Configures the AWS provider region (`ap-south-1`).
-- Supplies environment-specific variable values (`bucket_name`, `tags`) via `terraform.tfvars`.
-- Calls `module "s3_bucket"` and exposes final outputs (`bucket_name`, `bucket_arn`) to the terminal.
+---
 
-### 2. Child Module (`modules/s3/`)
-- Independent, generic, and agnostic to any single environment.
-- Takes `bucket_name` and `tags` as required inputs (with no hardcoded bucket name defaults).
-- Provisions the four standard S3 resources using modern decoupled AWS Provider v5 syntax.
+## 📦 Reusable Modules Specification
+
+### 1. AWS S3 Module (`modules/s3`)
+- **Key Resources:** `aws_s3_bucket`, `aws_s3_bucket_versioning`, `aws_s3_bucket_server_side_encryption_configuration`, `aws_s3_bucket_public_access_block`.
+- **Security Baseline:**
+  - Versioning enabled (`status = "Enabled"`).
+  - Default server-side encryption via AES256 (SSE-S3) with zero key management overhead.
+  - All four public access block settings set to `true`.
+- **Inputs:** `bucket_name` (string, required), `tags` (map(string), optional).
+- **Outputs:** `bucket_name` (ID of bucket), `bucket_arn` (ARN of bucket).
+
+### 2. AWS VPC Module (`modules/vpc`)
+- **Key Resources:** `aws_vpc`, `aws_subnet` (public/private count-based), `aws_internet_gateway`, `aws_route_table` (public/private), `aws_route_table_association`.
+- **Inputs & Validation:**
+  - `vpc_cidr`: String (default `"10.0.0.0/16"`, validated for IPv4 CIDR).
+  - `availability_zones`: List of AZs (e.g. `["ap-south-1a", "ap-south-1b"]`).
+  - `public_subnet_cidrs` & `private_subnet_cidrs`: List of CIDRs. Length is strictly validated to match the number of configured availability zones.
+  - `enable_dns_hostnames` & `enable_dns_support`: Booleans (default `true`).
+- **Cost-Conscious Architecture:** Private subnets are isolated with local VPC routing and **no NAT Gateway**, avoiding recurring idle NAT Gateway charges (~$32/month per AZ).
+- **Outputs:** `vpc_id`, `vpc_cidr_block`, `public_subnet_ids`, `private_subnet_ids`, `internet_gateway_id`, `public_route_table_id`, `private_route_table_id`.
+
+### 3. AWS Lambda Module (`modules/lambda`)
+- **Key Resources:** `aws_lambda_function`.
+- **Inputs & Validation:**
+  - `function_name`: Validated via regex `^[a-zA-Z0-9-_]{1,64}$`.
+  - `runtime`: Supported Lambda runtimes (default `"python3.11"`).
+  - `handler`: Entrypoint handler (default `"index.handler"`).
+  - `role_arn`: Validated via regex for AWS IAM role ARN format.
+  - `filename`: Local filesystem path to the deployment ZIP package.
+  - `timeout`: Validated between `1` and `900` seconds (default `3`).
+  - `memory_size`: Validated between `128` and `10,240` MB (default `128`).
+  - `environment_variables`: Map of strings rendered via dynamic blocks only when non-empty.
+- **Outputs:** `function_name`, `arn`, `invoke_arn`, `qualified_arn`.
+
+### 4. AWS CloudFront Module (`modules/cloudfront`)
+- **Key Resources:** `aws_cloudfront_distribution`, `aws_cloudfront_origin_access_control`.
+- **Origin & Security Configuration:**
+  - Points to S3 REST endpoint domain name (NOT the legacy S3 website endpoint).
+  - Uses modern **Origin Access Control (OAC)** with SigV4 signing protocol.
+  - Default cache behavior enforces `redirect-to-https`, `allowed_methods = ["GET", "HEAD"]`, compression enabled (`compress = true`), and attaches to AWS Managed CachingOptimized policy.
+  - Price class configurable (`PriceClass_100`, `PriceClass_200`, `PriceClass_All`).
+- **Outputs:** `distribution_id`, `arn`, `domain_name`, `hosted_zone_id`, `status`, `origin_access_control_id`, `recommended_s3_bucket_policy`.
 
 ---
 
-## 🛡️ S3 Resources & Security Configuration
+## 🚀 How to Consume Modules in Your Projects
 
-The child module provisions four decoupled AWS resources:
+Any external Terraform project can consume these modules using relative paths or Git source URLs:
 
-### 1. `aws_s3_bucket.this`
-- **Purpose:** Creates the core S3 storage container.
-- **Attributes:** Configured with `bucket = var.bucket_name` and metadata tags for cost attribution and governance.
+```hcl
+# Example: Consuming the VPC module
+module "network" {
+  source = "./modules/vpc" # or "github.com/<owner>/terraform-aws-modules//modules/vpc"
 
-### 2. `aws_s3_bucket_versioning.this`
-- **Purpose:** Protects against accidental overwrites and deletions.
-- **Setting:** `versioning_configuration { status = "Enabled" }`.
-- **Benefit:** Every version of every object is retained, allowing restoration in case of unintended modification or ransomware incidents.
+  vpc_cidr             = "10.0.0.0/16"
+  vpc_name             = "production-vpc"
+  availability_zones   = ["ap-south-1a", "ap-south-1b"]
+  public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+  private_subnet_cidrs = ["10.0.11.0/24", "10.0.12.0/24"]
 
-### 3. `aws_s3_bucket_server_side_encryption_configuration.this`
-- **Purpose:** Enforces mandatory encryption-at-rest.
-- **Setting:** `apply_server_side_encryption_by_default { sse_algorithm = "AES256" }`.
-- **Benefit:** Uses AWS managed keys (SSE-S3 / AES256) at zero additional KMS key management cost while satisfying enterprise regulatory and compliance baselines.
-
-### 4. `aws_s3_bucket_public_access_block.this`
-- **Purpose:** Completely prevents data exposure to the public internet.
-- **Settings:**
-  - `block_public_acls = true` (blocks new public ACLs)
-  - `block_public_policy = true` (rejects bucket policies allowing public access)
-  - `ignore_public_acls = true` (ignores all existing public ACLs on the bucket and its objects)
-  - `restrict_public_buckets = true` (restricts bucket access only to AWS service principals and authorized users)
-
-> **Resource Dependency Note:**
-> All three companion resources reference `bucket = aws_s3_bucket.this.id`. This establishes an **implicit dependency** in Terraform's Directed Acyclic Graph (DAG), ensuring the bucket is provisioned before applying security policies.
+  tags = {
+    Environment = "production"
+    ManagedBy   = "Terraform"
+  }
+}
+```
 
 ---
 
-## ⚙️ Inputs & Outputs
+## 🧪 Verification & Testing Workflow
 
-### Input Variables (Root)
-
-| Variable | Description | Type | Default | Required? |
-| :--- | :--- | :--- | :--- | :---: |
-| `aws_region` | AWS region where the bucket will be provisioned | `string` | `"ap-south-1"` | No |
-| `bucket_name` | Globally unique S3 bucket name | `string` | `"my-practical-tf-s3-bucket-demo"` | Yes (Override via `.tfvars`) |
-| `tags` | Map of resource tags applied for billing & tracking | `map(string)` | `Environment: Dev`, `Project: ...`, `ManagedBy: Terraform` | No |
-
-### Child Module Inputs (`modules/s3/variables.tf`)
-
-| Variable | Description | Type | Default |
-| :--- | :--- | :--- | :--- |
-| `bucket_name` | Name of the bucket to create (no fallback) | `string` | *(None — must be supplied)* |
-| `tags` | Resource tags | `map(string)` | `{}` |
-
-### Outputs
-
-| Output Name | Description | Source |
-| :--- | :--- | :--- |
-| `bucket_name` | The final created S3 bucket name / ID | `module.s3_bucket.bucket_name` |
-| `bucket_arn` | The Amazon Resource Name (ARN) of the bucket | `module.s3_bucket.bucket_arn` |
-
----
-
-## 📋 Prerequisites
-
-Before running this project, ensure you have:
-1. **Terraform CLI:** Version `1.0.0` or higher (verified with `1.15.x`).
-2. **AWS CLI:** Version 2.x installed and configured (`aws configure`).
-3. **AWS IAM Permissions:** Active credentials with permissions to manage S3 (`s3:CreateBucket`, `s3:PutBucketVersioning`, `s3:PutEncryptionConfiguration`, `s3:PutBucketPublicAccessBlock`).
-
----
-
-## 🚀 Execution & Verification Workflow
+Each module example is independent and can be tested locally using standard Terraform commands:
 
 ```powershell
-# 1. Initialize working directory & download AWS provider
+# 1. Navigate to the desired example directory:
+cd examples/vpc          # or cd examples/lambda, cd examples/cloudfront
+
+# 2. Initialize working directory & download AWS provider plugins:
 terraform init
 
-# 2. Check and enforce consistent formatting across all folders
-terraform fmt -check -recursive
+# 3. Check code formatting against standard style guidelines:
+terraform fmt -check
 
-# 3. Validate syntax and configuration integrity
+# 4. Validate configuration syntax and schema rules:
 terraform validate
 
-# 4. Preview execution plan (Dry Run - No resources created)
-terraform plan
-```
-
-### Applying and Destroying (When Ready for Real Deployment)
-
-> [!WARNING]
-> Running `terraform apply` provisions real cloud infrastructure in AWS and initiates billable resources. Do not run unless instructed.
-
-```powershell
-# To provision resources in AWS:
-terraform apply
-
-# To tear down and delete resources when done:
-terraform destroy
+# 5. Preview execution actions (Dry-Run Preview):
+terraform plan -no-color
 ```
 
 ---
 
-## 📊 Plan Verification Summary
+## ⚠️ Important Deployment Prerequisites
 
-A dry-run plan was executed with the following result:
+Before running `terraform apply` on any module in a live AWS environment:
 
-```text
-Plan: 4 to add, 0 to change, 0 to destroy.
-
-Changes to Outputs:
-  + bucket_arn  = (known after apply)
-  + bucket_name = (known after apply)
-```
-
-> [!IMPORTANT]
-> **Status Notice:**
-> This configuration has been **syntax-validated and plan-tested** successfully. Actual AWS deployment (`terraform apply`) has **NOT** been performed, and no resources currently exist in AWS.
-> 
-> **S3 Namespace Notice:**
-> A successful `terraform plan` confirms that your HCL syntax, provider schemas, and variable references are valid. It **does not guarantee** that the bucket name is available in the global AWS namespace. AWS only verifies bucket name availability during actual creation or through an explicit API check.
+1. **Lambda Deployment Package (ZIP):**
+   AWS Lambda requires a physical ZIP file containing compiled code (e.g., `build/function.zip`). In accordance with repository cleanliness standards, compiled binary ZIP files are excluded from Git. See `examples/lambda/README.md` for packaging instructions.
+2. **Lambda IAM Execution Role:**
+   You must provide an existing IAM role ARN with `AWSLambdaBasicExecutionRole` permissions.
+3. **CloudFront S3 Bucket Policy:**
+   CloudFront OAC requires an explicit bucket policy on the origin S3 bucket allowing `s3:GetObject` with `"AWS:SourceArn": "<DISTRIBUTION_ARN>"`. To keep modules decoupled, the CloudFront module outputs this policy statement (`recommended_s3_bucket_policy`) for you to attach to your bucket.
+4. **S3 Global Uniqueness:**
+   S3 bucket names must be globally unique across all AWS accounts worldwide. A successful `terraform plan` confirms syntax validity but does not reserve the name in AWS.
 
 ---
 
-## 💰 AWS Cost Considerations
+## 💰 Cost & Security Warnings
 
-- **S3 Bucket Creation:** Creating an S3 bucket itself carries no upfront fee.
-- **Storage & Requests:** S3 pricing is based on GB/month of data stored, PUT/GET/LIST requests, and outbound data transfer.
-- **Versioning Storage Impact:** When versioning is enabled, modifying or replacing an object stores both the old and new copies, increasing storage consumption over time. In production, an S3 Lifecycle rule should be configured to transition or delete old noncurrent versions after a set number of days.
-- **AES256 Encryption:** Default SSE-S3 encryption is completely free of charge.
+- **Dry-Run Notice:** All configurations in this repository have been **syntax-validated and plan-tested**. Actual AWS deployment (`terraform apply`) has **NOT** been performed, and no cloud resources exist.
+- **Billable Resources:** Running `terraform apply` on real AWS environments provisions billable infrastructure (e.g., S3 requests/storage, CloudFront data transfer, Lambda invocations). Always run `terraform destroy` when finished with temporary testing.
+- **Credential Hygiene:** Never commit `.tfvars` files, state files (`*.tfstate`), PEM certificates, or AWS credentials to version control. The repository's `.gitignore` automatically blocks these patterns.
 
 ---
 
-## 🔒 Security Best Practices & Git Hygiene
+## 🔮 Future Improvements & Roadmap
 
-1. **Never Commit `.tfvars`:**
-   Local `*.tfvars` files often contain account-specific values or sensitive parameters. They are strictly excluded via `.gitignore`.
-2. **Never Commit Terraform State (`*.tfstate`):**
-   State files contain sensitive metadata, resource IDs, and potentially unencrypted values. State files must be stored locally during testing or in a secure remote backend (e.g., S3 + DynamoDB state locking) in production.
-3. **Commit `.terraform.lock.hcl`:**
-   This file ensures that every member of the engineering team downloads the exact same checksum-verified provider binaries, eliminating "works on my machine" issues.
-4. **Credential Isolation:**
-   No AWS Access Keys or Secret Keys are hardcoded in any `.tf` file. Terraform securely reads credentials from the local AWS credential chain (`~/.aws/credentials` or environment variables).
-
+- [ ] Add an optional NAT Gateway toggle in `modules/vpc` for private subnet egress when outbound internet access is required.
+- [ ] Add AWS WAF (Web Application Firewall) integration option to `modules/cloudfront`.
+- [ ] Add VPC configuration options (VPC endpoint / subnet IDs) to `modules/lambda` for database connectivity.
+- [ ] Implement remote state management backend using S3 + DynamoDB state locking.

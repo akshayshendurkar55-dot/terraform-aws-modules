@@ -1,4 +1,4 @@
-# Local .terraform directories
+﻿# Local .terraform directories
 **/.terraform/*
 
 # Terraform state files
@@ -33,7 +33,12 @@ credentials
 .env
 .env.*
 
+# Archives and binaries
+*.zip
+*.tar.gz
+*.tgz
+
 # OS metadata
 .DS_Store
 Thumbs.db
-
+desktop.ini
